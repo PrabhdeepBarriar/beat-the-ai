@@ -279,7 +279,7 @@ function showEndScreen() {
 }
 
 function restartGame() {
-  gameTimer = 20;
+  gameTimer = 120;
   lives = 3;
   distance = 0;
   gameOver = false;
