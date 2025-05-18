@@ -6,15 +6,15 @@ const ctx = canvas.getContext('2d');
 const backgroundImg = new Image();
 backgroundImg.src = 'assets/background_fade_trees.svg';
 
-// Player setup (3x size with higher jump)
+// Player setup (3x size, reduced jump)
 let player = {
   x: 100,
-  y: 210,
+  y: 240,              // Adjusted for better alignment
   width: 90,
   height: 90,
   velocityY: 0,
   gravity: 0.8,
-  jumpForce: -16,
+  jumpForce: -12.8,    // 20% less than -16
   grounded: true,
   blink: false,
   blinkTimer: 0
@@ -69,9 +69,7 @@ frameSources.forEach((src) => {
   img.onload = () => {
     imagesLoaded++;
     if (imagesLoaded === frameSources.length) {
-      if (!gameOver) {
-    requestAnimationFrame(update);
-}
+      requestAnimationFrame(update);
     }
   };
   playerFrames.push(img);
@@ -89,8 +87,8 @@ function update(timestamp) {
     if (!player.grounded) {
       player.velocityY += player.gravity;
       player.y += player.velocityY;
-      if (player.y >= 210) {
-        player.y = 210;
+      if (player.y >= 240) {
+        player.y = 240;
         player.velocityY = 0;
         player.grounded = true;
       }
@@ -129,16 +127,13 @@ function update(timestamp) {
   draw();
   if (!gameOver) {
     requestAnimationFrame(update);
-}
+  }
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Draw background
   ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
 
-  // Animate player
   frameTimer++;
   if (frameTimer >= frameInterval) {
     currentFrame = currentFrame === 1 ? 2 : 1;
@@ -157,14 +152,17 @@ function draw() {
     ctx.drawImage(playerFrames[currentFrame], player.x, player.y, player.width, player.height);
   }
 
-  // Draw obstacle image
   ctx.drawImage(obstacle.img, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
 
-  // Draw HUD
+  // Draw HUD background box
+  ctx.fillStyle = '#000';
+  ctx.fillRect(10, 10, 180, 70);
+
+  // Draw HUD text
   ctx.fillStyle = '#fff';
   ctx.font = '20px Arial';
-  ctx.fillText(`Lives: ${lives}`, 20, 30);
-  ctx.fillText(`Distance: ${Math.floor(distance)}m`, 20, 60);
+  ctx.fillText(`Lives: ${lives}`, 20, 35);
+  ctx.fillText(`Distance: ${Math.floor(distance)}m`, 20, 65);
 
   if (gameOver) {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
@@ -209,7 +207,7 @@ function restartGame() {
   gameOver = false;
   speedMultiplier = 1;
   obstacle.x = canvas.width;
-  player.y = 210;
+  player.y = 240;
   player.velocityY = 0;
   player.grounded = true;
   player.blink = false;
