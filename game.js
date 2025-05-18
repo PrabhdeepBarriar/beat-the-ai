@@ -4,7 +4,7 @@ const ctx = canvas.getContext('2d');
 
 // Load background image
 const backgroundImg = new Image();
-backgroundImg.src = 'assets/background_fade_trees.jpeg';
+backgroundImg.src = 'assets/background_fade_trees.svg';
 
 // Player setup (3x size with higher jump)
 let player = {
@@ -22,9 +22,9 @@ let player = {
 
 // Load obstacle images
 const obstacleImages = [
-  'assets/cactus.jpeg',
-  'assets/block_spikes.jpeg',
-  'assets/bomb.jpeg'
+  'assets/cactus.svg',
+  'assets/block_spikes.svg',
+  'assets/bomb.svg'
 ];
 
 const obstacleImgs = obstacleImages.map(src => {
