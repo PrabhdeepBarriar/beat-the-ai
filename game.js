@@ -6,15 +6,15 @@ const ctx = canvas.getContext('2d');
 const backgroundImg = new Image();
 backgroundImg.src = 'assets/background_fade_trees.svg';
 
-// Player setup (3x size, reduced jump)
+// Player setup (3x size, restored jump)
 let player = {
   x: 100,
-  y: 240,              // Adjusted for better alignment
+  y: 240,
   width: 90,
   height: 90,
   velocityY: 0,
   gravity: 0.8,
-  jumpForce: -12.8,    // 20% less than -16
+  jumpForce: -16,    // original jump restored
   grounded: true,
   blink: false,
   blinkTimer: 0
@@ -44,9 +44,21 @@ let obstacle = {
 };
 
 // Game state
+let userCountry = 'Unknown';
+
+fetch('https://ipapi.co/json/')
+  .then(res => res.json())
+  .then(data => {
+    userCountry = data.country_name || 'Unknown';
+    console.log("User is from:", userCountry);
+  })
+  .catch(() => {
+    console.warn("Could not determine country");
+  });
 let lives = 3;
 let distance = 0;
 let gameOver = false;
+let gameStarted = false;
 let speedMultiplier = 1;
 let lastTimestamp = null;
 
@@ -69,7 +81,7 @@ frameSources.forEach((src) => {
   img.onload = () => {
     imagesLoaded++;
     if (imagesLoaded === frameSources.length) {
-      requestAnimationFrame(update);
+      showStartButton();
     }
   };
   playerFrames.push(img);
@@ -119,13 +131,13 @@ function update(timestamp) {
 
       if (lives <= 0) {
         gameOver = true;
-        showRestartButton();
+        showEndScreen();
       }
     }
   }
 
   draw();
-  if (!gameOver) {
+  if (!gameOver && gameStarted) {
     requestAnimationFrame(update);
   }
 }
@@ -154,38 +166,35 @@ function draw() {
 
   ctx.drawImage(obstacle.img, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
 
-  // Draw HUD background box
   ctx.fillStyle = '#000';
   ctx.fillRect(10, 10, 180, 70);
 
-  // Draw HUD text
   ctx.fillStyle = '#fff';
   ctx.font = '20px Arial';
   ctx.fillText(`Lives: ${lives}`, 20, 35);
   ctx.fillText(`Distance: ${Math.floor(distance)}m`, 20, 65);
-
-  if (gameOver) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = '#fff';
-    ctx.font = '36px Arial';
-    ctx.fillText('Game Over!', canvas.width / 2 - 100, canvas.height / 2 - 20);
-    ctx.font = '24px Arial';
-    ctx.fillText(`You ran ${Math.floor(distance)}m`, canvas.width / 2 - 80, canvas.height / 2 + 20);
-  }
 }
 
 document.addEventListener('keydown', (e) => {
-  if (e.code === 'Space' && player.grounded && !gameOver) {
+  if (e.code === 'Space' && player.grounded && !gameOver && gameStarted) {
     player.velocityY = player.jumpForce;
     player.grounded = false;
   }
 });
 
-function showRestartButton() {
+function showStartButton() {
+  const style = document.createElement('style');
+  style.innerHTML = `
+    @keyframes pulse {
+      0% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.05); }
+      100% { transform: translate(-50%, -50%) scale(1); }
+    }
+  `;
+  document.head.appendChild(style);
+
   const button = document.createElement('button');
-  button.textContent = 'Try Again';
+  button.textContent = 'Start Game';
   button.style.position = 'absolute';
   button.style.top = '50%';
   button.style.left = '50%';
@@ -193,12 +202,62 @@ function showRestartButton() {
   button.style.fontSize = '20px';
   button.style.padding = '10px 20px';
   button.style.cursor = 'pointer';
+  button.style.opacity = '0';
+  button.style.transition = 'opacity 1s ease, transform 0.3s ease-in-out';
+  button.style.animation = 'pulse 2s infinite';
   document.body.appendChild(button);
+
+  setTimeout(() => {
+    button.style.opacity = '1';
+  }, 50);
 
   button.addEventListener('click', () => {
     document.body.removeChild(button);
+    gameStarted = true;
+    requestAnimationFrame(update);
+  });
+
+  button.addEventListener('click', () => {
+    document.body.removeChild(button);
+    gameStarted = true;
+    requestAnimationFrame(update);
+  });
+}
+
+function showEndScreen() {
+  const overlay = document.createElement('div');
+  overlay.style.position = 'absolute';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100%';
+  overlay.style.height = '100%';
+  overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+  overlay.style.display = 'flex';
+  overlay.style.flexDirection = 'column';
+  overlay.style.justifyContent = 'center';
+  overlay.style.alignItems = 'center';
+
+  const scoreText = document.createElement('div');
+  scoreText.textContent = `Your score is ${Math.floor(distance)}
+Country: ${userCountry}`;
+  scoreText.style.color = '#fff';
+  scoreText.style.fontSize = '28px';
+  scoreText.style.marginBottom = '20px';
+
+  const button = document.createElement('button');
+  button.textContent = 'Try Again';
+  button.style.fontSize = '20px';
+  button.style.padding = '10px 20px';
+  button.style.cursor = 'pointer';
+
+  button.addEventListener('click', () => {
+    document.body.removeChild(overlay);
     restartGame();
   });
+
+  overlay.appendChild(scoreText);
+  overlay.appendChild(button);
+  document.body.appendChild(overlay);
 }
 
 function restartGame() {
@@ -212,4 +271,5 @@ function restartGame() {
   player.grounded = true;
   player.blink = false;
   lastTimestamp = null;
+  requestAnimationFrame(update);
 }
