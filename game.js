@@ -225,12 +225,6 @@ function showStartButton() {
     gameStarted = true;
     requestAnimationFrame(update);
   });
-
-  button.addEventListener('click', () => {
-    document.body.removeChild(button);
-    gameStarted = true;
-    requestAnimationFrame(update);
-  });
 }
 
 function showEndScreen() {
@@ -254,8 +248,7 @@ function showEndScreen() {
   overlay.appendChild(titleText);
 
   const scoreText = document.createElement('div');
-  scoreText.textContent = `Your score is ${Math.floor(distance)}
-Country: ${userCountry}`;
+  scoreText.textContent = `Your score is ${Math.floor(distance)}`;
   scoreText.style.color = '#fff';
   scoreText.style.fontSize = '28px';
   scoreText.style.marginBottom = '20px';
@@ -286,7 +279,7 @@ Country: ${userCountry}`;
 }
 
 function restartGame() {
-  gameTimer = 120;
+  gameTimer = 20;
   lives = 3;
   distance = 0;
   gameOver = false;
