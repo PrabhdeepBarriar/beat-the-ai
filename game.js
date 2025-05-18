@@ -2,7 +2,11 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Player setup (3x size)
+// Load background image
+const backgroundImg = new Image();
+backgroundImg.src = 'assets/background_fade_trees.jpeg';
+
+// Player setup (3x size with higher jump)
 let player = {
   x: 100,
   y: 210,
@@ -10,24 +14,33 @@ let player = {
   height: 90,
   velocityY: 0,
   gravity: 0.8,
-  jumpForce: -12,
+  jumpForce: -16,
   grounded: true,
   blink: false,
   blinkTimer: 0
 };
 
-// Obstacle setup
-let obstacleTypes = [
-  { width: 30, height: 50 },
-  { width: 25, height: 40 },
-  { width: 35, height: 30 }
+// Load obstacle images
+const obstacleImages = [
+  'assets/cactus.jpeg',
+  'assets/block_spikes.jpeg',
+  'assets/bomb.jpeg'
 ];
 
+const obstacleImgs = obstacleImages.map(src => {
+  const img = new Image();
+  img.src = src;
+  return img;
+});
+
+// Create obstacle with image
 let obstacle = {
   x: canvas.width,
-  ...obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)],
+  width: 60,
+  height: 60,
   y: 270,
-  speed: 6
+  speed: 6,
+  img: obstacleImgs[Math.floor(Math.random() * obstacleImgs.length)]
 };
 
 // Game state
@@ -56,7 +69,9 @@ frameSources.forEach((src) => {
   img.onload = () => {
     imagesLoaded++;
     if (imagesLoaded === frameSources.length) {
-      requestAnimationFrame(update);
+      if (!gameOver) {
+    requestAnimationFrame(update);
+}
     }
   };
   playerFrames.push(img);
@@ -68,11 +83,9 @@ function update(timestamp) {
   lastTimestamp = timestamp;
 
   if (!gameOver) {
-    // Update distance and speed multiplier
     distance += 10 * speedMultiplier * delta;
     speedMultiplier = 1 + Math.floor(distance / 100) * 0.15;
 
-    // Gravity
     if (!player.grounded) {
       player.velocityY += player.gravity;
       player.y += player.velocityY;
@@ -83,18 +96,18 @@ function update(timestamp) {
       }
     }
 
-    // Obstacle movement
     obstacle.x -= obstacle.speed * speedMultiplier;
     if (obstacle.x + obstacle.width < 0) {
       obstacle = {
         x: canvas.width + Math.random() * 200,
-        ...obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)],
+        width: 60,
+        height: 60,
         y: 270,
-        speed: 6
+        speed: 6,
+        img: obstacleImgs[Math.floor(Math.random() * obstacleImgs.length)]
       };
     }
 
-    // Collision detection
     if (
       player.x < obstacle.x + obstacle.width &&
       player.x + player.width > obstacle.x &&
@@ -114,11 +127,16 @@ function update(timestamp) {
   }
 
   draw();
-  requestAnimationFrame(update);
+  if (!gameOver) {
+    requestAnimationFrame(update);
+}
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw background
+  ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
 
   // Animate player
   frameTimer++;
@@ -139,9 +157,8 @@ function draw() {
     ctx.drawImage(playerFrames[currentFrame], player.x, player.y, player.width, player.height);
   }
 
-  // Draw obstacle
-  ctx.fillStyle = '#ff5555';
-  ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+  // Draw obstacle image
+  ctx.drawImage(obstacle.img, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
 
   // Draw HUD
   ctx.fillStyle = '#fff';
@@ -161,7 +178,6 @@ function draw() {
   }
 }
 
-// Controls
 document.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && player.grounded && !gameOver) {
     player.velocityY = player.jumpForce;
@@ -169,7 +185,6 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Try Again Button
 function showRestartButton() {
   const button = document.createElement('button');
   button.textContent = 'Try Again';
