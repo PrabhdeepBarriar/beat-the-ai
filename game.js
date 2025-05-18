@@ -44,12 +44,15 @@ let obstacle = {
 };
 
 // Game state
+let gameTimer = 120; // 2 minutes in seconds
 let userCountry = 'Unknown';
+let countryCode = '';
 
 fetch('https://ipapi.co/json/')
   .then(res => res.json())
   .then(data => {
     userCountry = data.country_name || 'Unknown';
+    countryCode = data.country_code || '';
     console.log("User is from:", userCountry);
   })
   .catch(() => {
@@ -93,6 +96,11 @@ function update(timestamp) {
   lastTimestamp = timestamp;
 
   if (!gameOver) {
+    gameTimer -= delta;
+    if (gameTimer <= 0) {
+      gameOver = true;
+      showEndScreen();
+    }
     distance += 10 * speedMultiplier * delta;
     speedMultiplier = 1 + Math.floor(distance / 100) * 0.15;
 
@@ -173,6 +181,7 @@ function draw() {
   ctx.font = '20px Arial';
   ctx.fillText(`Lives: ${lives}`, 20, 35);
   ctx.fillText(`Distance: ${Math.floor(distance)}m`, 20, 65);
+  ctx.fillText(`Time Left: ${Math.ceil(gameTimer)}s`, 20, 90);
 }
 
 document.addEventListener('keydown', (e) => {
@@ -237,6 +246,13 @@ function showEndScreen() {
   overlay.style.justifyContent = 'center';
   overlay.style.alignItems = 'center';
 
+  const titleText = document.createElement('div');
+  titleText.textContent = gameTimer <= 0 ? 'Congratulations, you won!' : 'Game Over!';
+  titleText.style.color = '#fff';
+  titleText.style.fontSize = '32px';
+  titleText.style.marginBottom = '20px';
+  overlay.appendChild(titleText);
+
   const scoreText = document.createElement('div');
   scoreText.textContent = `Your score is ${Math.floor(distance)}
 Country: ${userCountry}`;
@@ -255,12 +271,22 @@ Country: ${userCountry}`;
     restartGame();
   });
 
+  // Create flag image
+  const flagImg = document.createElement('img');
+  flagImg.src = `https://flagcdn.com/w80/${countryCode.toLowerCase()}.png`;
+  flagImg.style.marginBottom = '20px';
+  flagImg.alt = `Flag of ${userCountry}`;
+  flagImg.style.width = '60px';
+  flagImg.style.height = 'auto';
+  overlay.appendChild(flagImg);
+
   overlay.appendChild(scoreText);
   overlay.appendChild(button);
   document.body.appendChild(overlay);
 }
 
 function restartGame() {
+  gameTimer = 20;
   lives = 3;
   distance = 0;
   gameOver = false;
