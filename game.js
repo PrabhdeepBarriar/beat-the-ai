@@ -1,6 +1,7 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Player setup
 let player = {
   x: 100,
   y: 300,
@@ -12,6 +13,7 @@ let player = {
   grounded: true
 };
 
+// Load character animation frames
 const playerFrames = [];
 
 const idleImg = new Image();
@@ -29,8 +31,24 @@ let currentFrame = 0;
 let frameTimer = 0;
 const frameInterval = 12;
 
+// Draw the player with animation
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Animate between walkA and walkB
+  frameTimer++;
+  if (frameTimer >= frameInterval) {
+    currentFrame = currentFrame === 1 ? 2 : 1; // toggle between walkA and walkB
+    frameTimer = 0;
+  }
+
+  // Draw current frame
+  ctx.drawImage(playerFrames[currentFrame], player.x, player.y, player.width, player.height);
+}
+
+// Game update loop
 function update() {
-  // Gravity
+  // Apply gravity
   if (!player.grounded) {
     player.velocityY += player.gravity;
     player.y += player.velocityY;
@@ -46,20 +64,7 @@ function update() {
   requestAnimationFrame(update);
 }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Loop between walkA and walkB
-  frameTimer++;
-  if (frameTimer >= frameInterval) {
-    currentFrame = currentFrame === 1 ? 2 : 1;
-    frameTimer = 0;
-  }
-
-  // Draw animated character
-  ctx.drawImage(playerFrames[currentFrame], player.x, player.y, player.width, player.height);
-}
-
+// Jump on spacebar
 document.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && player.grounded) {
     player.velocityY = player.jumpForce;
@@ -67,4 +72,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-update();
+// Start game only after final image loads
+walkBImg.onload = () => {
+  update();
+};
