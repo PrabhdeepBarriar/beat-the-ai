@@ -175,13 +175,13 @@ function draw() {
   ctx.drawImage(obstacle.img, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
 
   ctx.fillStyle = '#000';
-  ctx.fillRect(10, 10, 180, 70);
+  ctx.fillRect(10, 10, 220, 90);
 
   ctx.fillStyle = '#fff';
   ctx.font = '20px Arial';
   ctx.fillText(`Lives: ${lives}`, 20, 35);
   ctx.fillText(`Distance: ${Math.floor(distance)}m`, 20, 65);
-  ctx.fillText(`Time Left: ${Math.ceil(gameTimer)}s`, 20, 90);
+  ctx.fillText(`Time Left: ${Math.ceil(gameTimer)}s`, 20, 85);
 }
 
 document.addEventListener('keydown', (e) => {
@@ -275,7 +275,7 @@ Country: ${userCountry}`;
   const flagImg = document.createElement('img');
   flagImg.src = `https://flagcdn.com/w80/${countryCode.toLowerCase()}.png`;
   flagImg.style.marginBottom = '20px';
-  flagImg.alt = `Flag of ${userCountry}`;
+  flagImg.alt = 'Country flag';
   flagImg.style.width = '60px';
   flagImg.style.height = 'auto';
   overlay.appendChild(flagImg);
@@ -286,7 +286,7 @@ Country: ${userCountry}`;
 }
 
 function restartGame() {
-  gameTimer = 20;
+  gameTimer = 120;
   lives = 3;
   distance = 0;
   gameOver = false;
