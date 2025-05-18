@@ -1,7 +1,7 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Player setup
+// Player properties
 let player = {
   x: 100,
   y: 300,
@@ -13,42 +13,48 @@ let player = {
   grounded: true
 };
 
-// Load character animation frames
-const playerFrames = [];
-
-const idleImg = new Image();
-idleImg.src = 'assets/character/character_yellow_idle.png';
-
-const walkAImg = new Image();
-walkAImg.src = 'assets/character/character_yellow_walk_a.png';
-
-const walkBImg = new Image();
-walkBImg.src = 'assets/character/character_yellow_walk_b.png';
-
-playerFrames.push(idleImg, walkAImg, walkBImg);
-
+// Load character frames
+const frameInterval = 12;
 let currentFrame = 0;
 let frameTimer = 0;
-const frameInterval = 12;
+const playerFrames = [];
 
-// Draw the player with animation
+const frameSources = [
+  'assets/character/character_yellow_idle.png',
+  'assets/character/character_yellow_walk_a.png',
+  'assets/character/character_yellow_walk_b.png'
+];
+
+let imagesLoaded = 0;
+
+frameSources.forEach((src, index) => {
+  const img = new Image();
+  img.src = src;
+  img.onload = () => {
+    imagesLoaded++;
+    if (imagesLoaded === frameSources.length) {
+      update(); // Start game only after all images load
+    }
+  };
+  playerFrames.push(img);
+});
+
+// Draw game frame
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Animate between walkA and walkB
   frameTimer++;
   if (frameTimer >= frameInterval) {
-    currentFrame = currentFrame === 1 ? 2 : 1; // toggle between walkA and walkB
+    currentFrame = currentFrame === 1 ? 2 : 1;
     frameTimer = 0;
   }
 
-  // Draw current frame
   ctx.drawImage(playerFrames[currentFrame], player.x, player.y, player.width, player.height);
 }
 
-// Game update loop
+// Game logic
 function update() {
-  // Apply gravity
   if (!player.grounded) {
     player.velocityY += player.gravity;
     player.y += player.velocityY;
@@ -64,15 +70,10 @@ function update() {
   requestAnimationFrame(update);
 }
 
-// Jump on spacebar
+// Controls
 document.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && player.grounded) {
     player.velocityY = player.jumpForce;
     player.grounded = false;
   }
 });
-
-// Start game only after final image loads
-walkBImg.onload = () => {
-  update();
-};
