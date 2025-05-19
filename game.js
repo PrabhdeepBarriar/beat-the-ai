@@ -1,6 +1,7 @@
 // Canvas and context
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+
 const aiCanvas = document.getElementById('aiCanvas');
 const aiCtx = aiCanvas.getContext('2d');
 
@@ -16,7 +17,7 @@ let player = {
   height: 90,
   velocityY: 0,
   gravity: 0.8,
-  jumpForce: -16,    // original jump restored
+  jumpForce: -16,
   grounded: true,
   blink: false,
   blinkTimer: 0
@@ -45,16 +46,8 @@ let obstacle = {
   img: obstacleImgs[Math.floor(Math.random() * obstacleImgs.length)]
 };
 
-function drawAIStub() {
-  aiCtx.clearRect(0, 0, aiCanvas.width, aiCanvas.height);
-  aiCtx.fillStyle = '#111';
-  aiCtx.font = '20px Arial';
-  aiCtx.fillText('AI game view ready.', 20, 40);
-}
-
-
 // Game state
-let gameTimer = 120; // 2 minutes in seconds
+let gameTimer = 120;
 let userCountry = 'Unknown';
 let countryCode = '';
 
@@ -68,6 +61,7 @@ fetch('https://ipapi.co/json/')
   .catch(() => {
     console.warn("Could not determine country");
   });
+
 let lives = 3;
 let distance = 0;
 let gameOver = false;
@@ -111,6 +105,7 @@ function update(timestamp) {
       gameOver = true;
       showEndScreen();
     }
+
     distance += 10 * speedMultiplier * delta;
     speedMultiplier = 1 + Math.floor(distance / 100) * 0.15;
 
@@ -195,6 +190,13 @@ function draw() {
   ctx.fillText(`Time Left: ${Math.ceil(gameTimer)}s`, 20, 85);
 }
 
+function drawAIStub() {
+  aiCtx.clearRect(0, 0, aiCanvas.width, aiCanvas.height);
+  aiCtx.fillStyle = '#fff';
+  aiCtx.font = '20px Arial';
+  aiCtx.fillText('AI game view ready', 20, 40);
+}
+
 document.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && player.grounded && !gameOver && gameStarted) {
     player.velocityY = player.jumpForce;
@@ -275,7 +277,6 @@ function showEndScreen() {
     restartGame();
   });
 
-  // Create flag image
   const flagImg = document.createElement('img');
   flagImg.src = `https://flagcdn.com/w80/${countryCode.toLowerCase()}.png`;
   flagImg.style.marginBottom = '20px';
