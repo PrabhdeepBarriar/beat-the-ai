@@ -9,7 +9,7 @@ const aiCtx = aiCanvas.getContext('2d');
 const backgroundImg = new Image();
 backgroundImg.src = 'assets/background_fade_trees.svg';
 
-// Player setup (3x size, restored jump)
+// Player setup
 let player = {
   x: 100,
   y: 240,
@@ -22,6 +22,63 @@ let player = {
   blink: false,
   blinkTimer: 0
 };
+
+// AIAgent class
+class AIAgent {
+  constructor(weights = [Math.random(), Math.random(), Math.random()]) {
+    this.x = 100;
+    this.y = 240;
+    this.width = 20;
+    this.height = 20;
+    this.velocityY = 0;
+    this.gravity = 0.8;
+    this.jumpForce = -16;
+    this.grounded = true;
+    this.alive = true;
+    this.score = 0;
+    this.weights = weights;
+  }
+
+  update(inputs) {
+    if (!this.alive) return;
+    const [dist, speed, timeLeft] = inputs;
+    const decision = this.think(dist, speed, timeLeft);
+    if (decision > 0.5) this.jump();
+    this.applyPhysics();
+    this.score += 1;
+  }
+
+  think(dist, speed, time) {
+    const sum = dist * this.weights[0] + speed * this.weights[1] + time * this.weights[2];
+    return 1 / (1 + Math.exp(-sum));
+  }
+
+  jump() {
+    if (this.grounded) {
+      this.velocityY = this.jumpForce;
+      this.grounded = false;
+    }
+  }
+
+  applyPhysics() {
+    this.velocityY += this.gravity;
+    this.y += this.velocityY;
+    if (this.y >= 240) {
+      this.y = 240;
+      this.velocityY = 0;
+      this.grounded = true;
+    }
+  }
+
+  draw(ctx) {
+    if (!this.alive) return;
+    ctx.fillStyle = 'cyan';
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+  }
+}
+
+let aiAgents = [];
+for (let i = 0; i < 5; i++) aiAgents.push(new AIAgent());
 
 // Load obstacle images
 const obstacleImages = [
@@ -36,7 +93,6 @@ const obstacleImgs = obstacleImages.map(src => {
   return img;
 });
 
-// Create obstacle with image
 let obstacle = {
   x: canvas.width,
   width: 60,
@@ -46,30 +102,28 @@ let obstacle = {
   img: obstacleImgs[Math.floor(Math.random() * obstacleImgs.length)]
 };
 
+let aiObstacle = { ...obstacle };
+
 // Game state
 let gameTimer = 120;
 let userCountry = 'Unknown';
 let countryCode = '';
+let lives = 3;
+let distance = 0;
+let aiScore = 0;
+let gameOver = false;
+let gameStarted = false;
+let speedMultiplier = 1;
+let lastTimestamp = null;
+let generation = 1;
 
 fetch('https://ipapi.co/json/')
   .then(res => res.json())
   .then(data => {
     userCountry = data.country_name || 'Unknown';
     countryCode = data.country_code || '';
-    console.log("User is from:", userCountry);
-  })
-  .catch(() => {
-    console.warn("Could not determine country");
   });
 
-let lives = 3;
-let distance = 0;
-let gameOver = false;
-let gameStarted = false;
-let speedMultiplier = 1;
-let lastTimestamp = null;
-
-// Animation setup
 const frameInterval = 12;
 let currentFrame = 0;
 let frameTimer = 0;
@@ -103,6 +157,7 @@ function update(timestamp) {
     gameTimer -= delta;
     if (gameTimer <= 0) {
       gameOver = true;
+      aiScore = Math.max(...aiAgents.map(a => a.score));
       showEndScreen();
     }
 
@@ -141,16 +196,38 @@ function update(timestamp) {
       lives--;
       player.blink = true;
       player.blinkTimer = 3;
-
-      if (lives <= 0) {
-        gameOver = true;
-        showEndScreen();
-      }
     }
+
+    aiObstacle.x -= aiObstacle.speed * speedMultiplier;
+    if (aiObstacle.x + aiObstacle.width < 0) {
+      aiObstacle = {
+        x: aiCanvas.width + Math.random() * 200,
+        width: 60,
+        height: 60,
+        y: 270,
+        speed: 6,
+        img: obstacleImgs[Math.floor(Math.random() * obstacleImgs.length)]
+      };
+    }
+
+    aiAgents.forEach(agent => {
+      const distToObstacle = aiObstacle.x - agent.x;
+      agent.update([distToObstacle, aiObstacle.speed * speedMultiplier, gameTimer]);
+
+      if (
+        agent.x < aiObstacle.x + aiObstacle.width &&
+        agent.x + agent.width > aiObstacle.x &&
+        agent.y < aiObstacle.y + aiObstacle.height &&
+        agent.y + agent.height > aiObstacle.y
+      ) {
+        agent.alive = false;
+      }
+    });
   }
 
   draw();
-  drawAIStub();
+  drawAI();
+
   if (!gameOver && gameStarted) {
     requestAnimationFrame(update);
   }
@@ -190,11 +267,19 @@ function draw() {
   ctx.fillText(`Time Left: ${Math.ceil(gameTimer)}s`, 20, 85);
 }
 
-function drawAIStub() {
+function drawAI() {
   aiCtx.clearRect(0, 0, aiCanvas.width, aiCanvas.height);
+  aiCtx.drawImage(backgroundImg, 0, 0, aiCanvas.width, aiCanvas.height);
+  aiCtx.drawImage(aiObstacle.img, aiObstacle.x, aiObstacle.y, aiObstacle.width, aiObstacle.height);
+
+  aiAgents.forEach(agent => agent.draw(aiCtx));
+
+  aiCtx.fillStyle = '#000';
+  aiCtx.fillRect(10, 10, 220, 70);
   aiCtx.fillStyle = '#fff';
   aiCtx.font = '20px Arial';
-  aiCtx.fillText('AI game view ready', 20, 40);
+  aiCtx.fillText(`Gen: ${generation}`, 20, 35);
+  aiCtx.fillText(`Alive: ${aiAgents.filter(a => a.alive).length}/5`, 20, 60);
 }
 
 document.addEventListener('keydown', (e) => {
@@ -253,21 +338,39 @@ function showEndScreen() {
   overlay.style.justifyContent = 'center';
   overlay.style.alignItems = 'center';
 
+  const won = distance > aiScore;
   const titleText = document.createElement('div');
-  titleText.textContent = gameTimer <= 0 ? 'Congratulations, you won!' : 'Game Over!';
+  titleText.textContent = won ? 'You Won!' : 'AI Won!';
   titleText.style.color = '#fff';
   titleText.style.fontSize = '32px';
   titleText.style.marginBottom = '20px';
   overlay.appendChild(titleText);
 
   const scoreText = document.createElement('div');
-  scoreText.textContent = `Your score is ${Math.floor(distance)}`;
+  scoreText.textContent = `Your score: ${Math.floor(distance)}\nAI score: ${Math.floor(aiScore)}`;
   scoreText.style.color = '#fff';
-  scoreText.style.fontSize = '28px';
+  scoreText.style.fontSize = '24px';
   scoreText.style.marginBottom = '20px';
+  overlay.appendChild(scoreText);
+
+  if (won) {
+    const flagImg = document.createElement('img');
+    flagImg.src = `https://flagcdn.com/w80/${countryCode.toLowerCase()}.png`;
+    flagImg.alt = 'Country flag';
+    flagImg.style.width = '60px';
+    flagImg.style.height = 'auto';
+    flagImg.style.marginBottom = '20px';
+    overlay.appendChild(flagImg);
+  } else {
+    const emoji = document.createElement('div');
+    emoji.textContent = '🤖';
+    emoji.style.fontSize = '48px';
+    emoji.style.marginBottom = '20px';
+    overlay.appendChild(emoji);
+  }
 
   const button = document.createElement('button');
-  button.textContent = 'Try Again';
+  button.textContent = won ? 'Play Again' : 'Try Again';
   button.style.fontSize = '20px';
   button.style.padding = '10px 20px';
   button.style.cursor = 'pointer';
@@ -277,15 +380,6 @@ function showEndScreen() {
     restartGame();
   });
 
-  const flagImg = document.createElement('img');
-  flagImg.src = `https://flagcdn.com/w80/${countryCode.toLowerCase()}.png`;
-  flagImg.style.marginBottom = '20px';
-  flagImg.alt = 'Country flag';
-  flagImg.style.width = '60px';
-  flagImg.style.height = 'auto';
-  overlay.appendChild(flagImg);
-
-  overlay.appendChild(scoreText);
   overlay.appendChild(button);
   document.body.appendChild(overlay);
 }
@@ -294,13 +388,18 @@ function restartGame() {
   gameTimer = 120;
   lives = 3;
   distance = 0;
+  aiScore = 0;
   gameOver = false;
   speedMultiplier = 1;
   obstacle.x = canvas.width;
+  aiObstacle.x = aiCanvas.width;
   player.y = 240;
   player.velocityY = 0;
   player.grounded = true;
   player.blink = false;
   lastTimestamp = null;
+  generation++;
+  aiAgents = [];
+  for (let i = 0; i < 5; i++) aiAgents.push(new AIAgent());
   requestAnimationFrame(update);
 }
