@@ -1,162 +1,44 @@
-// Canvas setup
+// game.js — Human Player & Shared Game Logic
+
+import { AIAgent, evolveNextGeneration, aiAgents, updateAI, drawAI, resetAI } from './ai.js';
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const aiCanvas = document.getElementById('aiCanvas');
-aiCtx = aiCanvas.getContext('2d');
-
 const backgroundImg = new Image();
 backgroundImg.src = 'assets/background_fade_trees.svg';
 
 let player = {
-  x: 100,
-  y: 240,
-  width: 90,
-  height: 90,
-  velocityY: 0,
-  gravity: 0.8,
-  jumpForce: -16,
-  grounded: true,
-  blink: false,
-  blinkTimer: 0
+  x: 100, y: 240, width: 90, height: 90,
+  velocityY: 0, gravity: 0.8, jumpForce: -16,
+  grounded: true, blink: false, blinkTimer: 0
 };
 
-let playerDead = false;
+let obstacle = {}, obstacleImgs = [], gameTimer = 120, lives = 3, distance = 0, speedMultiplier = 1;
+let gameOver = false, gameStarted = false, playerDead = false, lastTimestamp = null, aiScore = 0, generation = 1;
 
-class AIAgent {
-  constructor(weights = [Math.random(), Math.random(), Math.random()]) {
-    this.x = 100;
-    this.y = 270;
-    this.width = 20;
-    this.height = 20;
-    this.velocityY = 0;
-    this.gravity = 0.8;
-    this.jumpForce = -16;
-    this.grounded = true;
-    this.alive = true;
-    this.score = 0;
-    this.weights = weights;
-  }
-
-  update(inputs) {
-    if (!this.alive) return;
-    const [dist, speed, timeLeft] = inputs;
-    const decision = this.think(dist, speed, timeLeft);
-    if (decision > 0.5) this.jump();
-    this.applyPhysics();
-    this.score += 1;
-  }
-
-  think(dist, speed, time) {
-    const sum = dist * this.weights[0] + speed * this.weights[1] + time * this.weights[2];
-    return 1 / (1 + Math.exp(-sum));
-  }
-
-  jump() {
-    if (this.grounded) {
-      this.velocityY = this.jumpForce;
-      this.grounded = false;
-    }
-  }
-
-  applyPhysics() {
-    this.velocityY += this.gravity;
-    this.y += this.velocityY;
-    if (this.y >= 270) {
-      this.y = 270;
-      this.velocityY = 0;
-      this.grounded = true;
-    }
-  }
-
-  draw(ctx) {
-    if (!this.alive) return;
-    ctx.fillStyle = 'cyan';
-    ctx.fillRect(this.x, this.y, this.width, this.height);
-  }
-}
-
-function evolveNextGeneration() {
-  const topAgents = [...aiAgents].sort((a, b) => b.score - a.score).slice(0, 2);
-  const children = [];
-
-  while (children.length < 5) {
-    const parentA = topAgents[Math.floor(Math.random() * topAgents.length)].weights;
-    const parentB = topAgents[Math.floor(Math.random() * topAgents.length)].weights;
-    const childWeights = parentA.map((w, i) => {
-      const avg = (w + parentB[i]) / 2;
-      return Math.random() < 0.2 ? avg + (Math.random() - 0.5) * 0.5 : avg;
-    });
-    children.push(new AIAgent(childWeights));
-  }
-
-  return children;
-}
-
-let aiAgents = [];
-for (let i = 0; i < 5; i++) aiAgents.push(new AIAgent());
-
-// Game state
-let gameTimer = 120;
-let lives = 3;
-let distance = 0;
-let aiScore = 0;
-let gameOver = false;
-let gameStarted = false;
-let speedMultiplier = 1;
-let lastTimestamp = null;
-let generation = 1;
-
-let userCountry = 'Unknown';
-let countryCode = '';
-
-fetch('https://ipapi.co/json/')
-  .then(res => res.json())
-  .then(data => {
-    userCountry = data.country_name || 'Unknown';
-    countryCode = data.country_code || '';
-  });
-
-// Obstacles
-const obstacleImgs = ['assets/cactus.svg','assets/block_spikes.svg','assets/bomb.svg'].map(src => {
-  const img = new Image();
-  img.src = src;
-  return img;
-});
-
-let obstacle = {
-  x: canvas.width,
-  width: 60,
-  height: 60,
-  y: 270,
-  speed: 6,
-  img: obstacleImgs[Math.floor(Math.random() * obstacleImgs.length)]
-};
-
-let aiObstacle = { ...obstacle };
-
-// Frames
 const frameSources = [
   'assets/character/character_yellow_idle.png',
   'assets/character/character_yellow_walk_a.png',
   'assets/character/character_yellow_walk_b.png'
 ];
+const playerFrames = [], frameInterval = 12;
+let currentFrame = 0, frameTimer = 0, imagesLoaded = 0;
 
-const playerFrames = [];
-let currentFrame = 0;
-let frameTimer = 0;
-let imagesLoaded = 0;
-const frameInterval = 12;
+let countryCode = '';
+fetch('https://ipapi.co/json/')
+  .then(res => res.json()).then(data => countryCode = data.country_code?.toLowerCase());
 
-frameSources.forEach(src => {
-  const img = new Image();
-  img.src = src;
-  img.onload = () => {
-    imagesLoaded++;
-    if (imagesLoaded === frameSources.length) showStartButton();
-  };
-  playerFrames.push(img);
-});
-
+function preload() {
+  obstacleImgs = ['assets/cactus.svg','assets/block_spikes.svg','assets/bomb.svg'].map(src => {
+    const img = new Image(); img.src = src; return img;
+  });
+  frameSources.forEach(src => {
+    const img = new Image(); img.src = src; img.onload = () => {
+      playerFrames.push(img);
+      if (++imagesLoaded === frameSources.length) showStartButton();
+    };
+  });
+}
 
 function update(timestamp) {
   if (!lastTimestamp) lastTimestamp = timestamp;
@@ -165,88 +47,41 @@ function update(timestamp) {
 
   if (!gameOver) {
     gameTimer -= delta;
-    if (gameTimer <= 0) {
-      gameOver = true;
-      aiScore = Math.max(...aiAgents.map(a => a.score));
-      showEndScreen();
-    }
+    if (gameTimer <= 0) { gameOver = true; aiScore = Math.max(...aiAgents.map(a => a.score)); showEndScreen(); return; }
 
     if (!playerDead) {
       distance += 10 * speedMultiplier * delta;
       speedMultiplier = 1 + Math.floor(distance / 100) * 0.15;
-
       if (!player.grounded) {
         player.velocityY += player.gravity;
         player.y += player.velocityY;
-        if (player.y >= 240) {
-          player.y = 240;
-          player.velocityY = 0;
-          player.grounded = true;
-        }
+        if (player.y >= 240) { player.y = 240; player.velocityY = 0; player.grounded = true; }
       }
-
       obstacle.x -= obstacle.speed * speedMultiplier;
-      if (obstacle.x + obstacle.width < 0) {
-        obstacle = {
-          x: canvas.width + Math.random() * 200,
-          width: 60,
-          height: 60,
-          y: 270,
-          speed: 6,
-          img: obstacleImgs[Math.floor(Math.random() * obstacleImgs.length)]
-        };
-      }
-
-      if (
-        player.x < obstacle.x + obstacle.width &&
-        player.x + player.width > obstacle.x &&
-        player.y < obstacle.y + obstacle.height &&
-        player.y + player.height > obstacle.y &&
-        !player.blink
-      ) {
-        lives--;
-        if (lives <= 0) {
-          lives = 0;
-          playerDead = true;
-        }
-        player.blink = true;
-        player.blinkTimer = 3;
+      if (obstacle.x + obstacle.width < 0) resetObstacle();
+      if (collision(player, obstacle) && !player.blink) {
+        if (--lives <= 0) playerDead = true;
+        player.blink = true; player.blinkTimer = 3;
       }
     }
-
-    aiObstacle.x -= aiObstacle.speed * speedMultiplier;
-    if (aiObstacle.x + aiObstacle.width < 0) {
-      aiObstacle = {
-        x: aiCanvas.width + Math.random() * 200,
-        width: 60,
-        height: 60,
-        y: 270,
-        speed: 6,
-        img: obstacleImgs[Math.floor(Math.random() * obstacleImgs.length)]
-      };
-    }
-
-    aiAgents.forEach(agent => {
-      const distToObstacle = aiObstacle.x - agent.x;
-      agent.update([distToObstacle, aiObstacle.speed * speedMultiplier, gameTimer]);
-
-      if (
-        agent.x < aiObstacle.x + aiObstacle.width &&
-        agent.x + agent.width > aiObstacle.x &&
-        agent.y < aiObstacle.y + aiObstacle.height &&
-        agent.y + agent.height > aiObstacle.y
-      ) {
-        agent.alive = false;
-      }
-    });
+    updateAI(delta, speedMultiplier, gameTimer);
   }
-
   draw();
   drawAI();
+  if (!gameOver && gameStarted) requestAnimationFrame(update);
+}
 
-  if (!gameOver && gameStarted) {
-    requestAnimationFrame(update);
-  }
+function collision(a, b) {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+function resetObstacle() {
+  obstacle = {
+    x: canvas.width + Math.random() * 200,
+    width: 60, height: 60, y: 270,
+    speed: 6,
+    img: obstacleImgs[Math.floor(Math.random() * obstacleImgs.length)]
+  };
 }
 
 function draw() {
@@ -264,38 +99,18 @@ function draw() {
     if (Math.floor(player.blinkTimer * 10) % 2 === 0) {
       ctx.drawImage(playerFrames[currentFrame], player.x, player.y, player.width, player.height);
     }
-    if (player.blinkTimer <= 0) {
-      player.blink = false;
-    }
+    if (player.blinkTimer <= 0) player.blink = false;
   } else {
     ctx.drawImage(playerFrames[currentFrame], player.x, player.y, player.width, player.height);
   }
 
   ctx.drawImage(obstacle.img, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
 
-  ctx.fillStyle = '#000';
-  ctx.fillRect(10, 10, 220, 90);
-
-  ctx.fillStyle = '#fff';
-  ctx.font = '20px Arial';
+  ctx.fillStyle = '#000'; ctx.fillRect(10, 10, 220, 90);
+  ctx.fillStyle = '#fff'; ctx.font = '20px Arial';
   ctx.fillText(`Lives: ${Math.max(0, lives)}`, 20, 35);
   ctx.fillText(`Distance: ${Math.floor(distance)}m`, 20, 65);
   ctx.fillText(`Time Left: ${Math.ceil(gameTimer)}s`, 20, 85);
-}
-
-function drawAI() {
-  aiCtx.clearRect(0, 0, aiCanvas.width, aiCanvas.height);
-  aiCtx.drawImage(backgroundImg, 0, 0, aiCanvas.width, aiCanvas.height);
-  aiCtx.drawImage(aiObstacle.img, aiObstacle.x, aiObstacle.y, aiObstacle.width, aiObstacle.height);
-
-  aiAgents.forEach(agent => agent.draw(aiCtx));
-
-  aiCtx.fillStyle = '#000';
-  aiCtx.fillRect(10, 10, 220, 70);
-  aiCtx.fillStyle = '#fff';
-  aiCtx.font = '20px Arial';
-  aiCtx.fillText(`Gen: ${generation}`, 20, 35);
-  aiCtx.fillText(`Alive: ${aiAgents.filter(a => a.alive).length}/5`, 20, 60);
 }
 
 document.addEventListener('keydown', (e) => {
@@ -308,64 +123,35 @@ document.addEventListener('keydown', (e) => {
 function showStartButton() {
   const button = document.createElement('button');
   button.textContent = 'Start Game';
-  button.style.position = 'absolute';
-  button.style.top = '50%';
-  button.style.left = '50%';
-  button.style.transform = 'translate(-50%, -50%)';
-  button.style.fontSize = '20px';
-  button.style.padding = '10px 20px';
-  button.style.cursor = 'pointer';
+  Object.assign(button.style, {
+    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+    fontSize: '20px', padding: '10px 20px', cursor: 'pointer'
+  });
   document.body.appendChild(button);
   button.addEventListener('click', () => {
     document.body.removeChild(button);
     gameStarted = true;
+    resetObstacle();
     requestAnimationFrame(update);
   });
 }
 
 function showEndScreen() {
   const overlay = document.createElement('div');
-  overlay.style.position = 'absolute';
-  overlay.style.top = '0';
-  overlay.style.left = '0';
-  overlay.style.width = '100%';
-  overlay.style.height = '100%';
-  overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-  overlay.style.display = 'flex';
-  overlay.style.flexDirection = 'column';
-  overlay.style.justifyContent = 'center';
-  overlay.style.alignItems = 'center';
+  Object.assign(overlay.style, {
+    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+    backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column',
+    justifyContent: 'center', alignItems: 'center'
+  });
 
   const won = distance > aiScore;
-  const titleText = document.createElement('div');
-  titleText.textContent = won ? 'You Won!' : 'AI Won!';
-  titleText.style.color = '#fff';
-  titleText.style.fontSize = '32px';
-  titleText.style.marginBottom = '20px';
-  overlay.appendChild(titleText);
-
-  const scoreText = document.createElement('div');
-  scoreText.textContent = `Your score: ${Math.floor(distance)}\nAI score: ${Math.floor(aiScore)}`;
-  scoreText.style.color = '#fff';
-  scoreText.style.fontSize = '24px';
-  scoreText.style.marginBottom = '20px';
-  overlay.appendChild(scoreText);
-
-  if (won) {
-    const flagImg = document.createElement('img');
-    flagImg.src = `https://flagcdn.com/w80/${countryCode.toLowerCase()}.png`;
-    flagImg.alt = 'Country flag';
-    flagImg.style.width = '60px';
-    flagImg.style.height = 'auto';
-    flagImg.style.marginBottom = '20px';
-    overlay.appendChild(flagImg);
-  } else {
-    const emoji = document.createElement('div');
-    emoji.textContent = '🤖';
-    emoji.style.fontSize = '48px';
-    emoji.style.marginBottom = '20px';
-    overlay.appendChild(emoji);
-  }
+  overlay.innerHTML = `
+    <div style="color:#fff;font-size:32px;margin-bottom:20px">${won ? 'You Won!' : 'AI Won!'}</div>
+    <div style="color:#fff;font-size:24px;margin-bottom:20px">
+      Your score: ${Math.floor(distance)}<br/>AI score: ${Math.floor(aiScore)}
+    </div>
+    ${won ? `<img src="https://flagcdn.com/w80/${countryCode}.png" style="width:60px;margin-bottom:20px" />` : '<div style="font-size:48px;margin-bottom:20px">🤖</div>'}
+  `;
 
   const button = document.createElement('button');
   button.textContent = won ? 'Play Again' : 'Try Again';
@@ -388,14 +174,14 @@ function restartGame() {
   gameOver = false;
   playerDead = false;
   speedMultiplier = 1;
-  obstacle.x = canvas.width;
-  aiObstacle.x = aiCanvas.width;
   player.y = 240;
   player.velocityY = 0;
   player.grounded = true;
   player.blink = false;
   lastTimestamp = null;
   generation++;
-  aiAgents = evolveNextGeneration();
+  resetAI();
   requestAnimationFrame(update);
 }
+
+preload();
