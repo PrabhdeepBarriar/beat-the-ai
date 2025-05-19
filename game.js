@@ -1,6 +1,6 @@
-// game.js — Human Player & Shared Game Logic
+// game.js — Updated for AI HUD, Game Over Overlay, AI Restart Per Generation
 
-import { AIAgent, evolveNextGeneration, aiAgents, updateAI, drawAI, resetAI } from './ai.js';
+import { AIAgent, evolveNextGeneration, aiAgents, updateAI, drawAI, resetAI, aiDistance, aiAliveCount } from './ai.js';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -14,7 +14,10 @@ let player = {
 };
 
 let obstacle = {}, obstacleImgs = [], gameTimer = 120, lives = 3, distance = 0, speedMultiplier = 1;
-let gameOver = false, gameStarted = false, playerDead = false, lastTimestamp = null, aiScore = 0, generation = 1;
+let gameOver = false, gameStarted = false, playerDead = false, lastTimestamp = null, aiScore = 0;
+window.generation = 1;
+
+let waitingOverlay = null;
 
 const frameSources = [
   'assets/character/character_yellow_idle.png',
@@ -47,32 +50,64 @@ function update(timestamp) {
 
   if (!gameOver) {
     gameTimer -= delta;
-    if (gameTimer <= 0) { gameOver = true; aiScore = Math.max(...aiAgents.map(a => a.score)); showEndScreen(); return; }
+    if (gameTimer <= 0) {
+      gameOver = true;
+      aiScore = Math.max(...aiAgents.map(a => a.score));
+      showEndScreen();
+      return;
+    }
 
     if (!playerDead) {
       distance += 10 * speedMultiplier * delta;
       speedMultiplier = 1 + Math.floor(distance / 100) * 0.15;
+
       if (!player.grounded) {
         player.velocityY += player.gravity;
         player.y += player.velocityY;
         if (player.y >= 240) { player.y = 240; player.velocityY = 0; player.grounded = true; }
       }
+
       obstacle.x -= obstacle.speed * speedMultiplier;
       if (obstacle.x + obstacle.width < 0) resetObstacle();
       if (collision(player, obstacle) && !player.blink) {
-        if (--lives <= 0) playerDead = true;
+        if (--lives <= 0) {
+          lives = 0;
+          playerDead = true;
+          showWaitingOverlay();
+        }
         player.blink = true; player.blinkTimer = 3;
       }
     }
+
     updateAI(delta, speedMultiplier, gameTimer);
+
+    if (aiAliveCount() === 0) {
+      aiScore = Math.max(...aiAgents.map(a => a.score));
+      resetAI();
+    }
   }
+
   draw();
   drawAI();
+
   if (!gameOver && gameStarted) requestAnimationFrame(update);
 }
 
-function collision(a, b) {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+function showWaitingOverlay() {
+  if (waitingOverlay) return;
+  waitingOverlay = document.createElement('div');
+  Object.assign(waitingOverlay.style, {
+    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)', color: '#fff', display: 'flex',
+    justifyContent: 'center', alignItems: 'center', fontSize: '28px', zIndex: 1000
+  });
+  waitingOverlay.innerText = `Game Over – Waiting for AI to complete (${Math.ceil(gameTimer)}s left)`;
+  document.body.appendChild(waitingOverlay);
+
+  const timerUpdater = setInterval(() => {
+    if (gameOver) clearInterval(timerUpdater);
+    if (waitingOverlay) waitingOverlay.innerText = `Game Over – Waiting for AI to complete (${Math.ceil(gameTimer)}s left)`;
+  }, 1000);
 }
 
 function resetObstacle() {
@@ -82,6 +117,10 @@ function resetObstacle() {
     speed: 6,
     img: obstacleImgs[Math.floor(Math.random() * obstacleImgs.length)]
   };
+}
+
+function collision(a, b) {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
 function draw() {
@@ -106,19 +145,14 @@ function draw() {
 
   ctx.drawImage(obstacle.img, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
 
-  ctx.fillStyle = '#000'; ctx.fillRect(10, 10, 220, 90);
-  ctx.fillStyle = '#fff'; ctx.font = '20px Arial';
+  ctx.fillStyle = '#000';
+  ctx.fillRect(10, 10, 260, 110);
+  ctx.fillStyle = '#fff';
+  ctx.font = '20px Arial';
   ctx.fillText(`Lives: ${Math.max(0, lives)}`, 20, 35);
   ctx.fillText(`Distance: ${Math.floor(distance)}m`, 20, 65);
-  ctx.fillText(`Time Left: ${Math.ceil(gameTimer)}s`, 20, 85);
+  ctx.fillText(`Time Left: ${Math.ceil(gameTimer)}s`, 20, 95);
 }
-
-document.addEventListener('keydown', (e) => {
-  if (e.code === 'Space' && player.grounded && !gameOver && gameStarted) {
-    player.velocityY = player.jumpForce;
-    player.grounded = false;
-  }
-});
 
 function showStartButton() {
   const button = document.createElement('button');
@@ -137,6 +171,9 @@ function showStartButton() {
 }
 
 function showEndScreen() {
+  if (waitingOverlay) document.body.removeChild(waitingOverlay);
+  waitingOverlay = null;
+
   const overlay = document.createElement('div');
   Object.assign(overlay.style, {
     position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
@@ -179,7 +216,8 @@ function restartGame() {
   player.grounded = true;
   player.blink = false;
   lastTimestamp = null;
-  generation++;
+  window.generation++;
+  resetObstacle();
   resetAI();
   requestAnimationFrame(update);
 }
