@@ -10,6 +10,7 @@ export class AIAgent {
     this.grounded = true;
     this.alive = true;
     this.score = 0;
+    this.distance = 0;
     this.weights = weights;
     this.frameIndex = 1;
     this.frameTimer = 0;
@@ -22,6 +23,7 @@ export class AIAgent {
     if (decision > 0.5) this.jump();
     this.applyPhysics();
     this.score++;
+    this.distance += speed;
 
     this.frameTimer++;
     if (this.frameTimer >= 12) {
@@ -70,7 +72,7 @@ export let aiObstacle = {
 aiObstacle.img.src = 'assets/cactus.svg';
 
 export function evolveNextGeneration() {
-  const topAgents = [...aiAgents].sort((a, b) => b.score - a.score).slice(0, 2);
+  const topAgents = [...aiAgents].sort((a, b) => b.distance - a.distance).slice(0, 2);
   const children = [];
 
   while (children.length < 5) {
@@ -127,15 +129,23 @@ export function drawAI() {
   aiAgents.forEach(agent => agent.draw(aiCtx, [null, ...document.querySelectorAll('img[src*="character_yellow"]')]));
 
   aiCtx.fillStyle = '#000';
-  aiCtx.fillRect(10, 10, 220, 70);
+  aiCtx.fillRect(10, 10, 260, 90);
   aiCtx.fillStyle = '#fff';
   aiCtx.font = '20px Arial';
   aiCtx.fillText(`Gen: ${window.generation || 1}`, 20, 35);
   aiCtx.fillText(`Alive: ${aiAgents.filter(a => a.alive).length}/5`, 20, 60);
+  aiCtx.fillText(`Distance: ${Math.floor(Math.max(...aiAgents.map(a => a.distance)))}`, 20, 85);
 }
 
 export function resetAI() {
-  aiAgents = [];
-  for (let i = 0; i < 5; i++) aiAgents.push(new AIAgent());
+  evolveNextGeneration();
   aiObstacle.x = 900;
+}
+
+export function aiAliveCount() {
+  return aiAgents.filter(a => a.alive).length;
+}
+
+export function aiDistance() {
+  return Math.floor(Math.max(...aiAgents.map(a => a.distance)));
 }
