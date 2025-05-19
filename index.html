@@ -7,7 +7,15 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="gameCanvas" width="800" height="400"></canvas>
-  <script src="game.js"></script>
+  <div style="display: flex; justify-content: center; gap: 40px; padding-top: 20px;">
+    <div>
+      <h2 style="text-align: center;">You</h2>
+      <canvas id="gameCanvas" width="640" height="360" style="border:1px solid #ccc;"></canvas>
+    </div>
+    <div>
+      <h2 style="text-align: center;">AI</h2>
+      <canvas id="aiCanvas" width="640" height="360" style="border:1px solid #ccc;"></canvas>
+    </div>
+</div>
 </body>
 </html>

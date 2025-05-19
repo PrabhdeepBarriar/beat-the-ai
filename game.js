@@ -1,6 +1,8 @@
 // Canvas and context
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+const aiCanvas = document.getElementById('aiCanvas');
+const aiCtx = aiCanvas.getContext('2d');
 
 // Load background image
 const backgroundImg = new Image();
@@ -42,6 +44,14 @@ let obstacle = {
   speed: 6,
   img: obstacleImgs[Math.floor(Math.random() * obstacleImgs.length)]
 };
+
+function drawAIStub() {
+  aiCtx.clearRect(0, 0, aiCanvas.width, aiCanvas.height);
+  aiCtx.fillStyle = '#111';
+  aiCtx.font = '20px Arial';
+  aiCtx.fillText('AI game view ready.', 20, 40);
+}
+
 
 // Game state
 let gameTimer = 120; // 2 minutes in seconds
@@ -145,6 +155,7 @@ function update(timestamp) {
   }
 
   draw();
+  drawAIStub();
   if (!gameOver && gameStarted) {
     requestAnimationFrame(update);
   }
