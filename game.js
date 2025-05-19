@@ -1,15 +1,12 @@
-// Canvas and context
+// Canvas setup
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-
 const aiCanvas = document.getElementById('aiCanvas');
-const aiCtx = aiCanvas.getContext('2d');
+aiCtx = aiCanvas.getContext('2d');
 
-// Load background image
 const backgroundImg = new Image();
 backgroundImg.src = 'assets/background_fade_trees.svg';
 
-// Player setup
 let player = {
   x: 100,
   y: 240,
@@ -23,11 +20,12 @@ let player = {
   blinkTimer: 0
 };
 
-// AIAgent class
+let playerDead = false;
+
 class AIAgent {
   constructor(weights = [Math.random(), Math.random(), Math.random()]) {
     this.x = 100;
-    this.y = 240;
+    this.y = 270;
     this.width = 20;
     this.height = 20;
     this.velocityY = 0;
@@ -63,8 +61,8 @@ class AIAgent {
   applyPhysics() {
     this.velocityY += this.gravity;
     this.y += this.velocityY;
-    if (this.y >= 240) {
-      this.y = 240;
+    if (this.y >= 270) {
+      this.y = 270;
       this.velocityY = 0;
       this.grounded = true;
     }
@@ -77,17 +75,49 @@ class AIAgent {
   }
 }
 
+function evolveNextGeneration() {
+  const topAgents = [...aiAgents].sort((a, b) => b.score - a.score).slice(0, 2);
+  const children = [];
+
+  while (children.length < 5) {
+    const parentA = topAgents[Math.floor(Math.random() * topAgents.length)].weights;
+    const parentB = topAgents[Math.floor(Math.random() * topAgents.length)].weights;
+    const childWeights = parentA.map((w, i) => {
+      const avg = (w + parentB[i]) / 2;
+      return Math.random() < 0.2 ? avg + (Math.random() - 0.5) * 0.5 : avg;
+    });
+    children.push(new AIAgent(childWeights));
+  }
+
+  return children;
+}
+
 let aiAgents = [];
 for (let i = 0; i < 5; i++) aiAgents.push(new AIAgent());
 
-// Load obstacle images
-const obstacleImages = [
-  'assets/cactus.svg',
-  'assets/block_spikes.svg',
-  'assets/bomb.svg'
-];
+// Game state
+let gameTimer = 120;
+let lives = 3;
+let distance = 0;
+let aiScore = 0;
+let gameOver = false;
+let gameStarted = false;
+let speedMultiplier = 1;
+let lastTimestamp = null;
+let generation = 1;
 
-const obstacleImgs = obstacleImages.map(src => {
+let userCountry = 'Unknown';
+let countryCode = '';
+
+fetch('https://ipapi.co/json/')
+  .then(res => res.json())
+  .then(data => {
+    userCountry = data.country_name || 'Unknown';
+    countryCode = data.country_code || '';
+  });
+
+// Obstacles
+const obstacleImgs = ['assets/cactus.svg','assets/block_spikes.svg','assets/bomb.svg'].map(src => {
   const img = new Image();
   img.src = src;
   return img;
@@ -104,49 +134,29 @@ let obstacle = {
 
 let aiObstacle = { ...obstacle };
 
-// Game state
-let gameTimer = 120;
-let userCountry = 'Unknown';
-let countryCode = '';
-let lives = 3;
-let distance = 0;
-let aiScore = 0;
-let gameOver = false;
-let gameStarted = false;
-let speedMultiplier = 1;
-let lastTimestamp = null;
-let generation = 1;
-
-fetch('https://ipapi.co/json/')
-  .then(res => res.json())
-  .then(data => {
-    userCountry = data.country_name || 'Unknown';
-    countryCode = data.country_code || '';
-  });
-
-const frameInterval = 12;
-let currentFrame = 0;
-let frameTimer = 0;
-const playerFrames = [];
-
+// Frames
 const frameSources = [
   'assets/character/character_yellow_idle.png',
   'assets/character/character_yellow_walk_a.png',
   'assets/character/character_yellow_walk_b.png'
 ];
 
+const playerFrames = [];
+let currentFrame = 0;
+let frameTimer = 0;
 let imagesLoaded = 0;
-frameSources.forEach((src) => {
+const frameInterval = 12;
+
+frameSources.forEach(src => {
   const img = new Image();
   img.src = src;
   img.onload = () => {
     imagesLoaded++;
-    if (imagesLoaded === frameSources.length) {
-      showStartButton();
-    }
+    if (imagesLoaded === frameSources.length) showStartButton();
   };
   playerFrames.push(img);
 });
+
 
 function update(timestamp) {
   if (!lastTimestamp) lastTimestamp = timestamp;
@@ -161,41 +171,47 @@ function update(timestamp) {
       showEndScreen();
     }
 
-    distance += 10 * speedMultiplier * delta;
-    speedMultiplier = 1 + Math.floor(distance / 100) * 0.15;
+    if (!playerDead) {
+      distance += 10 * speedMultiplier * delta;
+      speedMultiplier = 1 + Math.floor(distance / 100) * 0.15;
 
-    if (!player.grounded) {
-      player.velocityY += player.gravity;
-      player.y += player.velocityY;
-      if (player.y >= 240) {
-        player.y = 240;
-        player.velocityY = 0;
-        player.grounded = true;
+      if (!player.grounded) {
+        player.velocityY += player.gravity;
+        player.y += player.velocityY;
+        if (player.y >= 240) {
+          player.y = 240;
+          player.velocityY = 0;
+          player.grounded = true;
+        }
       }
-    }
 
-    obstacle.x -= obstacle.speed * speedMultiplier;
-    if (obstacle.x + obstacle.width < 0) {
-      obstacle = {
-        x: canvas.width + Math.random() * 200,
-        width: 60,
-        height: 60,
-        y: 270,
-        speed: 6,
-        img: obstacleImgs[Math.floor(Math.random() * obstacleImgs.length)]
-      };
-    }
+      obstacle.x -= obstacle.speed * speedMultiplier;
+      if (obstacle.x + obstacle.width < 0) {
+        obstacle = {
+          x: canvas.width + Math.random() * 200,
+          width: 60,
+          height: 60,
+          y: 270,
+          speed: 6,
+          img: obstacleImgs[Math.floor(Math.random() * obstacleImgs.length)]
+        };
+      }
 
-    if (
-      player.x < obstacle.x + obstacle.width &&
-      player.x + player.width > obstacle.x &&
-      player.y < obstacle.y + obstacle.height &&
-      player.y + player.height > obstacle.y &&
-      !player.blink
-    ) {
-      lives--;
-      player.blink = true;
-      player.blinkTimer = 3;
+      if (
+        player.x < obstacle.x + obstacle.width &&
+        player.x + player.width > obstacle.x &&
+        player.y < obstacle.y + obstacle.height &&
+        player.y + player.height > obstacle.y &&
+        !player.blink
+      ) {
+        lives--;
+        if (lives <= 0) {
+          lives = 0;
+          playerDead = true;
+        }
+        player.blink = true;
+        player.blinkTimer = 3;
+      }
     }
 
     aiObstacle.x -= aiObstacle.speed * speedMultiplier;
@@ -262,7 +278,7 @@ function draw() {
 
   ctx.fillStyle = '#fff';
   ctx.font = '20px Arial';
-  ctx.fillText(`Lives: ${lives}`, 20, 35);
+  ctx.fillText(`Lives: ${Math.max(0, lives)}`, 20, 35);
   ctx.fillText(`Distance: ${Math.floor(distance)}m`, 20, 65);
   ctx.fillText(`Time Left: ${Math.ceil(gameTimer)}s`, 20, 85);
 }
@@ -290,16 +306,6 @@ document.addEventListener('keydown', (e) => {
 });
 
 function showStartButton() {
-  const style = document.createElement('style');
-  style.innerHTML = `
-    @keyframes pulse {
-      0% { transform: translate(-50%, -50%) scale(1); }
-      50% { transform: translate(-50%, -50%) scale(1.05); }
-      100% { transform: translate(-50%, -50%) scale(1); }
-    }
-  `;
-  document.head.appendChild(style);
-
   const button = document.createElement('button');
   button.textContent = 'Start Game';
   button.style.position = 'absolute';
@@ -309,15 +315,7 @@ function showStartButton() {
   button.style.fontSize = '20px';
   button.style.padding = '10px 20px';
   button.style.cursor = 'pointer';
-  button.style.opacity = '0';
-  button.style.transition = 'opacity 1s ease, transform 0.3s ease-in-out';
-  button.style.animation = 'pulse 2s infinite';
   document.body.appendChild(button);
-
-  setTimeout(() => {
-    button.style.opacity = '1';
-  }, 50);
-
   button.addEventListener('click', () => {
     document.body.removeChild(button);
     gameStarted = true;
@@ -374,12 +372,10 @@ function showEndScreen() {
   button.style.fontSize = '20px';
   button.style.padding = '10px 20px';
   button.style.cursor = 'pointer';
-
   button.addEventListener('click', () => {
     document.body.removeChild(overlay);
     restartGame();
   });
-
   overlay.appendChild(button);
   document.body.appendChild(overlay);
 }
@@ -390,6 +386,7 @@ function restartGame() {
   distance = 0;
   aiScore = 0;
   gameOver = false;
+  playerDead = false;
   speedMultiplier = 1;
   obstacle.x = canvas.width;
   aiObstacle.x = aiCanvas.width;
@@ -399,7 +396,6 @@ function restartGame() {
   player.blink = false;
   lastTimestamp = null;
   generation++;
-  aiAgents = [];
-  for (let i = 0; i < 5; i++) aiAgents.push(new AIAgent());
+  aiAgents = evolveNextGeneration();
   requestAnimationFrame(update);
 }
